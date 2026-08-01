@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}練習回顧｜暖伴{% endblock %}
+{% block body_class %}record-detail-page{% endblock %}
+
+{% block content %}
+<section class="detail-heading">
+    <a class="back-link" href="{{ url_for('pages.records') }}">← 回到練習紀錄</a>
+    <div class="detail-title-row">
+        <div>
+            <span class="section-kicker">SESSION REVIEW</span>
+            <h1>{{ session.started_at|datetime_zh }} 的互動回顧</h1>
+            <p>{{ session.child_name }} · {{ session.material }} · {{ session.duration_seconds|duration_zh }}</p>
+        </div>
+        <span class="session-status {{ 'is-live' if session.status == 'active' else '' }}">
+            {{ '進行中' if session.status == 'active' else '已完成' }}
+        </span>
+    </div>
+</section>
+
+<section class="detail-metrics">
+    <article>
+        <span>平均等待</span>
+        <strong>{{ session.average_wait }}<small> 秒</small></strong>
+        <p>理想區間為 3–5 秒</p>
+    </article>
+    <article>
+        <span>語句擴展</span>
+        <strong>{{ session.expansion_rate }}<small>%</small></strong>
+        <p>保留孩子的詞並加入線索</p>
+    </article>
+    <article>
+        <span>輪流互動</span>
+        <strong>{{ session.turn_taking_rate }}<small>%</small></strong>
+        <p>維持一句一輪的節奏</p>
+    </article>
+</section>
+
+<section class="review-grid">
+    <article class="panel review-dialogue">
+        <div class="panel-heading">
+            <div>
+                <span class="section-kicker">TRANSCRIPT</span>
+                <h2>互動逐字紀錄</h2>
+            </div>
+            <span>{{ events|length }} 個事件</span>
+        </div>
+        <div class="review-events">
+            {% for event in events %}
+            <div class="review-event {{ 'is-child' if event.speaker == 'child' else '' }}">
+                <span class="speaker-avatar">{{ '孩' if event.speaker == 'child' else '家' }}</span>
+                <div>
+                    <span>{{ '孩子' if event.speaker == 'child' else '家長' }} · 等待 {{ event.pause_before }} 秒</span>
+                    <strong>{{ event.text }}</strong>
+                </div>
+                {% if event.analysis.wait_met is sameas true %}
+                    <span class="event-badge">等待剛好</span>
+                {% elif event.analysis.expansion_met is sameas true %}
+                    <span class="event-badge">成功擴展</span>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="empty-state">這次互動還沒有逐字事件。</div>
+            {% endfor %}
+        </div>
+    </article>
+
+    <aside class="panel review-insight">
+        <span class="section-kicker">COACH NOTE</span>
+        <h2>帶到下一次的重點</h2>
+        <div class="insight-callout">
+            <span>✦</span>
+            <strong>等待的節奏很穩定</strong>
+            <p>你多次把 3 秒以上的空間留給孩子，這會讓他更有機會主動回應。</p>
+        </div>
+        <div class="next-practice">
+            <span>下次可以試試</span>
+            <strong>擴展後，再補一個自然動作</strong>
+            <p>例如孩子說「紅色球球」，你可以說「紅色球球滾過來了」。</p>
+        </div>
+        <a class="button button-primary button-full" href="{{ url_for('pages.coach') }}">再練習一次</a>
+    </aside>
+</section>
+{% endblock %}
+

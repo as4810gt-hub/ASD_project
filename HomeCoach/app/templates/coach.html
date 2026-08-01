@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+
+{% block title %}互動教練｜暖伴{% endblock %}
+{% block body_class %}coach-page{% endblock %}
+
+{% block content %}
+<section class="coach-topbar">
+    <div>
+        <div class="session-identity">
+            <span class="live-indicator"><i></i><span id="session-state-label">準備中</span></span>
+            <span class="session-divider"></span>
+            <strong id="session-child-label">小宇的互動時間</strong>
+        </div>
+        <p>教材：<span id="session-material-label">{{ material.session_label }}</span></p>
+    </div>
+    <div class="session-timer">
+        <span>本次互動</span>
+        <strong id="session-timer">00:00</strong>
+    </div>
+</section>
+
+<section class="coach-hud" id="coach-hud" data-tone="ready" aria-live="polite">
+    <div class="hud-symbol" aria-hidden="true">✦</div>
+    <div class="hud-copy">
+        <span id="hud-eyebrow">親子共讀</span>
+        <strong id="hud-title">先跟著孩子看到的地方</strong>
+        <p id="hud-message">先描述一個畫面細節，再停下來等待孩子回應。</p>
+    </div>
+    <div class="hud-example" id="hud-example">{{ material.parent_example }}</div>
+</section>
+
+<section class="coach-workspace">
+    <div class="interaction-stage">
+        <div class="stage-toolbar">
+            <div class="stage-title">
+                <span class="material-number" id="material-number">{{ "%02d"|format(material_number) }}</span>
+                <div>
+                    <strong id="material-title">{{ material.title }}</strong>
+                    <span id="material-subtitle">{{ material.subtitle }}</span>
+                </div>
+            </div>
+            <div class="stage-actions">
+                <label class="material-picker" for="material-select">
+                    <span>切換教材</span>
+                    <select id="material-select" aria-label="切換教材">
+                        {% for item in materials %}
+                            <option value="{{ item.id }}" {{ "selected" if item.id == material.id else "" }}>
+                                {{ item.title }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <button class="icon-button" id="toggle-focus" type="button" aria-label="切換專注模式">⌗</button>
+                <button class="icon-button" id="recalibrate-gaze" type="button" aria-label="重新校正視線">◎</button>
+            </div>
+        </div>
+
+        <div class="material-canvas" id="material-canvas">
+            <img
+                id="material-image"
+                src="{{ url_for('pages.stimulus', filename=material.filename) }}"
+                alt="{{ material.alt_text }}"
+                data-material-id="{{ material.id }}"
+            >
+            <div class="material-vignette"></div>
+            <div class="gaze-marker" id="gaze-marker" aria-hidden="true">
+                <span></span>
+            </div>
+            <div class="material-caption" id="material-caption">
+                <span id="material-prompt-label">練習提示 · 可以直接這樣問</span>
+                <strong id="material-practice-prompt">{{ material.practice_prompt }}</strong>
+            </div>
+
+            <div class="camera-preview" id="camera-preview">
+                <video id="camera-video" autoplay muted playsinline></video>
+                <div class="camera-placeholder" id="camera-placeholder">
+                    <span class="camera-face">•‿•</span>
+                    <small>開始後顯示攝影機</small>
+                </div>
+                <span class="camera-label"><i></i> 孩子視線（請單人入鏡）</span>
+            </div>
+        </div>
+
+        <div class="session-controls">
+            <button class="button button-primary button-large" id="start-session" type="button">
+                <span class="record-dot" aria-hidden="true"></span>
+                開始互動
+            </button>
+            <button class="button button-secondary" id="demo-session" type="button" disabled>
+                播放示範對話
+            </button>
+            <div class="utterance-controls" aria-label="語音轉寫">
+                <button
+                    class="utterance-button is-parent"
+                    id="record-parent"
+                    type="button"
+                    aria-pressed="false"
+                    disabled
+                >
+                    <span>家</span>
+                    <b>家長說話</b>
+                </button>
+                <button
+                    class="utterance-button is-child"
+                    id="record-child"
+                    type="button"
+                    aria-pressed="false"
+                    disabled
+                >
+                    <span>孩</span>
+                    <b>孩子說話</b>
+                </button>
+            </div>
+            <button class="button button-quiet" id="finish-session" type="button" disabled>
+                結束並儲存
+            </button>
+            <span class="control-spacer"></span>
+            <span class="privacy-reminder">提示資料最小化傳送；互動紀錄仍保存在本機</span>
+        </div>
+    </div>
+
+    <aside class="coach-sidebar">
+        <section class="signal-panel">
+            <div class="sidebar-heading">
+                <div>
+                    <span class="section-kicker">LIVE SIGNALS</span>
+                    <h2>即時狀態</h2>
+                </div>
+                <span class="signal-ready" id="signal-summary">待命</span>
+            </div>
+            <div class="signal-list">
+                <div class="signal-item">
+                    <span class="signal-icon signal-mic">≋</span>
+                    <div>
+                        <strong>語音辨識</strong>
+                        <span id="speech-status">尚未啟動</span>
+                    </div>
+                    <i class="signal-dot" id="speech-dot"></i>
+                </div>
+                <div class="signal-item">
+                    <span class="signal-icon signal-eye">◉</span>
+                    <div>
+                        <strong>教材視線</strong>
+                        <span id="gaze-status">等待攝影機</span>
+                    </div>
+                    <i class="signal-dot" id="gaze-dot"></i>
+                </div>
+                <div class="signal-item">
+                    <span class="signal-icon signal-rule">⌁</span>
+                    <div>
+                        <strong>EMT＋Gemini 教練</strong>
+                        <span id="rule-status">正在確認 Gemini</span>
+                    </div>
+                    <i class="signal-dot is-on"></i>
+                </div>
+            </div>
+        </section>
+
+        <section class="asd-panel" aria-labelledby="asd-panel-title">
+            <div class="sidebar-heading">
+                <div>
+                    <span class="section-kicker">ASD V4 · EXPERIMENTAL</span>
+                    <h2 id="asd-panel-title">互動觀察</h2>
+                </div>
+                <span class="signal-ready" id="asd-status">待命</span>
+            </div>
+            <div class="asd-observation-grid">
+                <div>
+                    <span>表情訊號</span>
+                    <strong id="asd-emotion">—</strong>
+                </div>
+                <div>
+                    <span>眨眼率</span>
+                    <strong id="asd-blink-rate">—</strong>
+                    <small>次／分鐘</small>
+                </div>
+                <div class="asd-severity-summary">
+                    <span>模型分級訊號</span>
+                    <strong id="asd-severity">分析中</strong>
+                    <small id="asd-eye-state">等待校正後的視線資料</small>
+                </div>
+            </div>
+            <div class="asd-probabilities" aria-label="模型分級機率">
+                <div>
+                    <span>TD</span>
+                    <i id="asd-td-track" role="progressbar" aria-label="TD 機率" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><b id="asd-td-bar"></b></i>
+                    <strong id="asd-td-prob">—</strong>
+                </div>
+                <div>
+                    <span>輕度</span>
+                    <i id="asd-mild-track" role="progressbar" aria-label="輕度訊號機率" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><b id="asd-mild-bar"></b></i>
+                    <strong id="asd-mild-prob">—</strong>
+                </div>
+                <div>
+                    <span>重度</span>
+                    <i id="asd-severe-track" role="progressbar" aria-label="重度訊號機率" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><b id="asd-severe-bar"></b></i>
+                    <strong id="asd-severe-prob">—</strong>
+                </div>
+            </div>
+            <p class="asd-disclaimer">此為研究模型的互動訊號，不是 ASD 診斷或嚴重度評估。</p>
+        </section>
+
+        <section class="metric-panel">
+            <div class="sidebar-heading">
+                <div>
+                    <span class="section-kicker">EMT PULSE</span>
+                    <h2>這一刻的節奏</h2>
+                </div>
+            </div>
+            <div class="live-metrics">
+                <div class="live-metric">
+                    <div class="metric-ring" style="--progress: 0" id="wait-ring">
+                        <strong id="wait-value">—</strong>
+                    </div>
+                    <div>
+                        <span>平均等待</span>
+                        <small>目標 3–5 秒</small>
+                    </div>
+                </div>
+                <div class="live-metric">
+                    <div class="metric-ring ring-green" style="--progress: 0" id="expand-ring">
+                        <strong id="expand-value">—</strong>
+                    </div>
+                    <div>
+                        <span>語句擴展</span>
+                        <small>保留詞＋1 線索</small>
+                    </div>
+                </div>
+                <div class="live-metric">
+                    <div class="metric-ring ring-blue" style="--progress: 0" id="turn-ring">
+                        <strong id="turn-value">—</strong>
+                    </div>
+                    <div>
+                        <span>輪流互動</span>
+                        <small>一句一輪</small>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </aside>
+</section>
+
+<section class="dialogue-panel panel">
+    <div class="dialogue-header">
+        <div>
+            <span class="section-kicker">DIALOGUE EVENTS</span>
+            <h2>互動逐字紀錄</h2>
+        </div>
+        <button class="text-button" id="toggle-entry" type="button">＋ 手動加入一句</button>
+    </div>
+    <p class="asd-disclaimer">Gemini 僅接收目前教材 PNG、最近五筆逐字文字與去診斷化互動調整；不接收相機／DeepFace JPEG、原始錄音或 TD／輕度／重度機率。所有互動紀錄仍保存在本機。</p>
+
+    <form class="event-entry" id="event-entry" hidden>
+        <label>
+            <span>說話者</span>
+            <select id="event-speaker">
+                <option value="parent">家長</option>
+                <option value="child">孩子</option>
+            </select>
+        </label>
+        <label class="event-text-field">
+            <span>對話內容</span>
+            <input id="event-text" type="text" maxlength="120" placeholder="輸入剛才說的話">
+        </label>
+        <label>
+            <span>前段等待</span>
+            <input id="event-pause" type="number" min="0" max="30" step="0.1" value="3.2">
+        </label>
+        <button class="button button-secondary" type="submit">加入分析</button>
+    </form>
+
+    <div class="dialogue-stream" id="dialogue-stream">
+        <div class="dialogue-empty" id="dialogue-empty">
+            <span class="empty-wave">≋</span>
+            <strong>互動開始後，逐字紀錄會顯示在這裡</strong>
+            <p>暖伴分析語句、時間與即時互動訊號；原始錄音和影像不會儲存。</p>
+        </div>
+    </div>
+</section>
+
+<dialog class="calibration-dialog" id="calibration-dialog">
+    <div class="calibration-copy">
+        <span class="section-kicker">GAZE CALIBRATION</span>
+        <h2>請看著圓點並點擊</h2>
+        <p>保持頭部自然不動，每個位置點五下。完成後，視線判斷才會開始。</p>
+        <strong id="calibration-progress">1 / 45</strong>
+        <button class="text-button" id="skip-calibration" type="button">暫時使用示範視線</button>
+    </div>
+    <button
+        class="calibration-target"
+        id="calibration-target"
+        type="button"
+        aria-label="視線校正點"
+    ><span></span></button>
+</dialog>
+
+<dialog class="finish-dialog" id="finish-dialog">
+    <div class="finish-icon">✓</div>
+    <span class="section-kicker">SESSION SAVED</span>
+    <h2>今天的練習完成了</h2>
+    <p>你有把時間留給孩子，也持續接住他的話。這些小小的改變，會慢慢成為自然的互動習慣。</p>
+    <div class="finish-stats">
+        <div><span>平均等待</span><strong id="finish-wait">—</strong></div>
+        <div><span>語句擴展</span><strong id="finish-expand">—</strong></div>
+        <div><span>輪流互動</span><strong id="finish-turn">—</strong></div>
+    </div>
+    <div class="finish-actions">
+        <a class="button button-primary" href="{{ url_for('pages.records') }}">查看練習紀錄</a>
+        <button class="button button-ghost" type="button" id="close-finish-dialog">留在這一頁</button>
+    </div>
+</dialog>
+{% endblock %}
+
+{% block scripts %}
+<script
+    id="webgazer-runtime"
+    src="{{ url_for('pages.webgazer_script') }}"
+    data-face-mesh-base="/mediapipe/face_mesh"
+></script>
+<script id="material-catalog" type="application/json">{{ materials|tojson }}</script>
+<script src="{{ url_for('static', filename='js/coach.js') }}"></script>
+{% endblock %}

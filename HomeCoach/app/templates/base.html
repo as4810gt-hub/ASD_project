@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="AI 居家早療互動教練，協助家長練習 EMT 親子溝通策略。">
+    <title>{% block title %}暖伴 AI 互動教練{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+    <header class="site-header">
+        <a class="brand" href="{{ url_for('pages.dashboard') }}" aria-label="暖伴首頁">
+            <span class="brand-mark" aria-hidden="true">
+                <span></span>
+                <span></span>
+            </span>
+            <span class="brand-copy">
+                <strong>暖伴</strong>
+                <small>AI Home Coach</small>
+            </span>
+        </a>
+
+        <nav class="main-nav" aria-label="主要導覽">
+            <a href="{{ url_for('pages.dashboard') }}"
+               class="{{ 'is-active' if active_page == 'dashboard' else '' }}">
+                今日總覽
+            </a>
+            <a href="{{ url_for('pages.coach') }}"
+               class="{{ 'is-active' if active_page == 'coach' else '' }}">
+                互動教練
+            </a>
+            <a href="{{ url_for('pages.records') }}"
+               class="{{ 'is-active' if active_page == 'records' else '' }}">
+                練習紀錄
+            </a>
+        </nav>
+
+        <div class="header-actions">
+            <span class="privacy-chip" title="互動紀錄保存在本機；啟用 Gemini 時，只傳送產生教練提示所需的最小資料。"><i></i>互動紀錄本機保存</span>
+            <button class="profile-button" type="button" aria-label="家長帳戶">林</button>
+        </div>
+    </header>
+
+    <main class="page-shell">
+        {% block content %}{% endblock %}
+    </main>
+
+    <div class="toast" id="app-toast" role="status" aria-live="polite"></div>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

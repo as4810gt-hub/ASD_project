@@ -1,0 +1,13 @@
+Flask==3.1.1
+numpy==1.26.4
+-e ../faster-whisper-master
+
+# ASD v4 experimental severity and facial-expression analysis.
+scikit-learn==1.7.2
+xgboost==2.0.3
+opencv-python==4.9.0.80
+Pillow==10.4.0
+deepface==0.0.100
+tensorflow==2.16.1
+tf-keras==2.16.0
+h5py==3.10.0

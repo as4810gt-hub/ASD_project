@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}練習紀錄｜暖伴{% endblock %}
+{% block body_class %}records-page{% endblock %}
+
+{% block content %}
+<section class="records-hero">
+    <div>
+        <span class="section-kicker">PRACTICE JOURNEY</span>
+        <h1>看見你們一起累積的改變</h1>
+        <p>這裡只記錄互動指標與逐字事件，原始錄音和影像不會被保存。</p>
+    </div>
+    <a class="button button-primary" href="{{ url_for('pages.coach') }}">開始新的互動</a>
+</section>
+
+<section class="record-overview">
+    <article>
+        <span>近七日互動</span>
+        <strong>{{ summary.weekly_sessions }} <small>次</small></strong>
+    </article>
+    <article>
+        <span>累積練習</span>
+        <strong>{{ summary.total_seconds|duration_zh }}</strong>
+    </article>
+    <article>
+        <span>平均等待</span>
+        <strong>{{ summary.average_wait }} <small>秒</small></strong>
+    </article>
+    <article>
+        <span>輪流互動</span>
+        <strong>{{ summary.turn_taking_rate }}<small>%</small></strong>
+    </article>
+</section>
+
+<section class="records-table-panel panel">
+    <div class="panel-heading">
+        <div>
+            <span class="section-kicker">ALL SESSIONS</span>
+            <h2>所有練習</h2>
+        </div>
+        <span class="local-only-label"><i></i> 本機紀錄</span>
+    </div>
+
+    <div class="records-table-wrap">
+        <table class="records-table">
+            <thead>
+                <tr>
+                    <th>日期與教材</th>
+                    <th>互動時間</th>
+                    <th>平均等待</th>
+                    <th>語句擴展</th>
+                    <th>輪流互動</th>
+                    <th><span class="sr-only">查看</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for session in sessions %}
+                <tr>
+                    <td>
+                        <strong>{{ session.started_at|datetime_zh }}</strong>
+                        <span>{{ session.material }} · {{ session.child_name }}</span>
+                    </td>
+                    <td>{{ session.duration_seconds|duration_zh }}</td>
+                    <td>
+                        <span class="score-chip {{ 'is-good' if 3 <= session.average_wait <= 5 else '' }}">
+                            {{ session.average_wait }} 秒
+                        </span>
+                    </td>
+                    <td>{{ session.expansion_rate }}%</td>
+                    <td>{{ session.turn_taking_rate }}%</td>
+                    <td>
+                        <a class="row-link" href="{{ url_for('pages.record_detail', session_id=session.id) }}"
+                           aria-label="查看 {{ session.started_at|datetime_zh }} 練習">→</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6">
+                        <div class="empty-state">還沒有練習紀錄，從今天開始吧。</div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}
+

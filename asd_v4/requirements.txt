@@ -1,0 +1,17 @@
+# Verified on Apple Silicon with Python 3.10.20.
+# Keep NumPy/scikit-learn aligned with severity_classifier.pkl.
+numpy==1.26.4
+scikit-learn==1.7.2
+xgboost==2.0.3
+
+# OpenCV distributions share the same cv2 package, so their versions must match.
+opencv-python==4.9.0.80
+opencv-contrib-python==4.9.0.80
+mediapipe==1.0.0
+Pillow==10.4.0
+
+# DeepFace/TensorFlow compatibility for the legacy emotion HDF5 weights.
+deepface==0.0.100
+tensorflow==2.16.1
+tf-keras==2.16.0
+h5py==3.10.0
