@@ -1,4 +1,5 @@
 Flask==3.1.1
+certifi>=2025.1.31
 numpy==1.26.4
 -e ../faster-whisper-master
 

@@ -982,14 +982,49 @@ h2 {
     min-width: 0;
 }
 
-.hud-copy span {
+.hud-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 3px;
+}
+
+.hud-meta > span {
     display: block;
-    margin-bottom: 2px;
     color: var(--ink-soft);
     font-size: 9px;
     font-weight: 850;
     letter-spacing: 0.16em;
     text-transform: uppercase;
+}
+
+.hud-meta .hud-source {
+    padding: 2px 7px;
+    border: 1px solid rgba(23, 56, 50, 0.16);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.48);
+    font-size: 8px;
+    letter-spacing: 0.04em;
+    text-transform: none;
+}
+
+.hud-source[data-source="gemini"],
+.hud-source[data-source="ollama"] {
+    border-color: rgba(26, 119, 96, 0.24);
+    background: rgba(232, 250, 243, 0.84);
+    color: #176b57;
+}
+
+.coach-hud.is-waiting .hud-symbol {
+    animation: livePulse 1.5s infinite;
+}
+
+.coach-hud.is-waiting .hud-example {
+    display: none;
+}
+
+.material-caption.is-waiting strong {
+    display: none;
 }
 
 .hud-copy strong {
@@ -1012,6 +1047,22 @@ h2 {
     font-family: Georgia, "Noto Serif TC", serif;
     font-size: 14px;
     font-weight: 600;
+}
+
+.hud-example:not(:empty)::before {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--ink-soft);
+    content: "建議家長下一句";
+    font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", "Noto Sans TC", "PingFang TC", sans-serif;
+    font-size: 8px;
+    font-weight: 850;
+    letter-spacing: 0.12em;
+}
+
+.hud-example:empty {
+    display: none;
 }
 
 .coach-workspace {

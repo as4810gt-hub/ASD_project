@@ -457,6 +457,23 @@ class ContextBuilder:
             "response_mode": response_mode,
             "micro_action": micro_action,
             "relationship_priority": emotional_context["active"],
+            "relationship_continues_from_previous_turn": bool(
+                emotional_context["active"]
+                and emotional_context["from_previous_turn"]
+            ),
+            "current_turn_acknowledgement_required": bool(
+                emotional_context["active"]
+                and emotional_context["from_previous_turn"]
+                and current_speaker == "parent"
+            ),
+            "current_parent_utterance": (
+                self._clean_utterance(current_event.get("text"))[:48]
+                if current_speaker == "parent"
+                else ""
+            ),
+            "relationship_response_state": rule_analysis.get(
+                "relationship_response_state"
+            ),
             "emotional_category": (
                 emotional_context["category"]
                 if emotional_context["active"]

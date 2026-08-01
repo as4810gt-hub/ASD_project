@@ -102,10 +102,10 @@ curl http://127.0.0.1:5000/api/health
 3. 家長要說話時點一下「家長說話」，說完再點一次「停止並轉寫」。
 4. 孩子要說話時同樣使用「孩子說話」按鈕。系統不會自動辨識說話者，
    按下哪個按鈕就會把這段錄音標記為哪位說話者。
-5. Whisper 完成轉寫後，文字、停頓秒數與可用的視線結果會立刻進入 EMT 分析，
-   UI 先顯示情境化提示並允許錄下一句；Gemini 會在背景把提示潤飾得更自然，失敗時
-   自動改用本機 Ollama。完成後才更新畫面，不會阻塞語音流程；圖片下方的「練習提示」
-   也會同步更新。
+5. Whisper 完成轉寫後，文字、停頓秒數與可用的視線結果會立刻進入 EMT 分析。
+   Gemini／Ollama 生成期間只顯示等待狀態，不會先把規則備援誤當成模型提示；完成後
+   才顯示文案，並清楚標示「模型生成」或「規則備援・非模型」。這段等待不會阻塞
+   下一句錄音；圖片下方的「練習提示」也會在來源確認後同步更新。
 
 這是 **click-to-start / click-to-stop** 的逐句錄音設計。每段錄音最長 30 秒，
 後端單檔上限預設為 8 MB。若沒有偵測到清楚語音，該段不會建立對話事件；
@@ -259,14 +259,14 @@ python run.py
 | `GEMINI_MAX_IMAGE_BYTES` | `3145728` | 教材 PNG 大小上限（3 MiB） |
 | `OLLAMA_ENABLED` | `1` | 是否允許 Ollama 作為 Gemini 的本機備援 |
 | `OLLAMA_BASE_URL` | `http://localhost:11434/api` | Ollama API base；程式會再加上 `/chat` 或 `/tags` |
-| `OLLAMA_MODEL` | `ornith:9b` | Ollama 本機備援模型名稱 |
+| `OLLAMA_MODEL` | `gemma4:e4b` | Ollama 本機備援模型名稱 |
 | `OLLAMA_TIMEOUT_SECONDS` | `30` | Ollama 請求逾時秒數 |
 
 本機備援仍需先啟動 Ollama 並備妥模型。例如：
 
 ```bash
 export OLLAMA_BASE_URL=http://localhost:11434/api
-export OLLAMA_MODEL=ornith:9b
+export OLLAMA_MODEL=gemma4:e4b
 python run.py
 ```
 

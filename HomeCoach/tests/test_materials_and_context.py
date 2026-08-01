@@ -71,6 +71,9 @@ class MaterialsAndContextTests(unittest.TestCase):
         self.assertIn(material["title"], html)
         self.assertIn(material["practice_prompt"], html)
         self.assertIn('data-material-id="162"', html)
+        self.assertIn("預設引導 · 非模型", html)
+        self.assertIn('id="hud-source"', html)
+        self.assertIn('<div class="hud-example" id="hud-example"></div>', html)
 
         unknown = self.client.get("/coach?material=999")
         self.assertEqual(unknown.status_code, 404)
@@ -223,9 +226,67 @@ class MaterialsAndContextTests(unittest.TestCase):
         self.assertEqual(suggestion["tone"], fallback["tone"])
         self.assertEqual(suggestion["eyebrow"], fallback["eyebrow"])
         self.assertEqual(suggestion["title"], fallback["title"])
-        self.assertEqual(suggestion["practice_prompt"], "圖" * 36)
-        self.assertEqual(len(suggestion["practice_prompt"]), 36)
+        self.assertEqual(suggestion["practice_prompt"], "圖" * 48)
+        self.assertEqual(len(suggestion["practice_prompt"]), 48)
         self.assertEqual(suggestion["source"], "ollama")
+        self.assertEqual(
+            suggestion["model_generated_fields"],
+            "message,example,practice_prompt",
+        )
+
+    def test_parent_turn_does_not_repeat_the_catalog_example(self):
+        material = get_material("176")
+        context = {
+            "material_profile": {
+                "parent_example": material["parent_example"],
+                "visible_elements": material["visible_elements"],
+                "example_bank": material["example_bank"],
+                "prompt_bank": material["prompt_bank"],
+                "default_practice_prompt": material["practice_prompt"],
+            },
+            "current_event": {
+                "speaker": "parent",
+                "text": "他們在雪地裡做什麼呢？",
+                "pause_before": 3.5,
+            },
+            "interaction_brief": {"response_mode": "keep_natural_turn"},
+            "recent_coach_copy": [],
+        }
+        fallback = {
+            "tone": "positive",
+            "eyebrow": "節奏很好",
+            "title": "剛才這個來回很自然",
+            "message": "維持這個節奏。",
+            "example": material["parent_example"],
+            "practice_prompt": material["practice_prompt"],
+        }
+        provider = OllamaCoachProvider(
+            base_url="http://localhost:11434/api",
+            model="test-model",
+            enabled=True,
+        )
+        provider._request_json = lambda *_args, **_kwargs: {
+            "message": {
+                "content": json.dumps(
+                    {
+                        "response_mode": "follow_rule",
+                        "tone": "positive",
+                        "eyebrow": "節奏很好",
+                        "title": "剛才這個來回很自然",
+                        "message": "這一輪很自然，先等孩子接話。",
+                        "example": material["parent_example"],
+                        "practice_prompt": "你覺得他們接下來會做什麼？",
+                    },
+                    ensure_ascii=False,
+                )
+            }
+        }
+
+        suggestion = provider.generate(context, fallback)
+
+        self.assertNotEqual(suggestion["example"], material["parent_example"])
+        self.assertIn("停一下", suggestion["example"])
+        self.assertNotIn("example", suggestion["model_generated_fields"])
 
     def test_context_builder_rejects_non_finite_untrusted_numbers(self):
         observation = ContextBuilder._safe_asd_observation(

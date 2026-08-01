@@ -193,6 +193,54 @@ class RepairConnectionProviderTests(unittest.TestCase):
         self.assertEqual(result["title"], "先回答孩子心裡的問題")
         self.assertEqual(result["coach_target_source"], "clinical_rule")
 
+    def test_carried_repair_message_acknowledges_current_parent_turn(self):
+        context = self._context()
+        context["recent_dialogue"] = [
+            {
+                "speaker": "child",
+                "text": "我不想理你了，你走開。",
+                "pause_before": 2.0,
+            }
+        ]
+        context["current_event"] = {
+            "speaker": "parent",
+            "text": "你看雪地這麼白，是不是很想跑？",
+            "pause_before": 2.0,
+        }
+        context["interaction_brief"].update(
+            {
+                "current_turn_acknowledgement_required": True,
+                "relationship_continues_from_previous_turn": True,
+                "relationship_response_state": "needs_repair",
+            }
+        )
+        provider = OllamaCoachProvider(
+            base_url="http://localhost:11434/api",
+            model="test-model",
+            enabled=True,
+        )
+        provider._request_json = Mock(
+            return_value=self._ollama_response(
+                {
+                    "response_mode": "repair_connection",
+                    "tone": "ready",
+                    "eyebrow": "情緒接住",
+                    "title": "先接住孩子",
+                    "message": "孩子剛才說不想理你，先聽他的感受。",
+                    "example": "「我聽見你很不好受，我在這裡陪你。」",
+                    "practice_prompt": "我想聽你說，剛才是不是很難受？",
+                }
+            )
+        )
+
+        result = provider.generate(context, self.IMAGE_FALLBACK)
+
+        self.assertEqual(result["source"], "ollama")
+        self.assertIn("你這一句", result["message"])
+        self.assertIn("上一輪", result["message"])
+        self.assertNotIn("message", result["model_generated_fields"])
+        self.assertIn("example", result["model_generated_fields"])
+
     def test_model_can_safely_escalate_a_missed_relational_hurt(self):
         context = self._context(
             repair=False,

@@ -1,5 +1,6 @@
 import base64
 import json
+import socket
 import tempfile
 import unittest
 from pathlib import Path
@@ -327,6 +328,23 @@ class GeminiCoachProviderContractTests(unittest.TestCase):
         )
         provider.generate(self._context(), self.fallback)
         self.assertEqual(provider.health()["status"], "ready")
+
+    def test_dns_failures_are_reported_distinctly_from_api_errors(self):
+        failure = error.URLError(
+            socket.gaierror(8, "nodename nor servname provided")
+        )
+
+        self.assertEqual(
+            GeminiCoachProvider._safe_error_name(failure),
+            "dns_unavailable",
+        )
+
+    def test_provider_has_a_verified_ca_bundle_in_python_venv(self):
+        provider = self._provider()
+
+        self.assertTrue(provider.ssl_context.verify_mode)
+        self.assertTrue(provider.ssl_context.check_hostname)
+        self.assertTrue(provider.ssl_context.get_ca_certs())
 
 
 if __name__ == "__main__":

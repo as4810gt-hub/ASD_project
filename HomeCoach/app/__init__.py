@@ -45,7 +45,7 @@ def create_app(test_config=None):
             "OLLAMA_BASE_URL",
             "http://localhost:11434/api",
         ),
-        OLLAMA_MODEL=os.getenv("OLLAMA_MODEL", "ornith:9b"),
+        OLLAMA_MODEL=os.getenv("OLLAMA_MODEL", "gemma4:e4b"),
         OLLAMA_TIMEOUT_SECONDS=float(
             os.getenv("OLLAMA_TIMEOUT_SECONDS", "30")
         ),

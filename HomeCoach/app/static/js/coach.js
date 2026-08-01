@@ -84,6 +84,7 @@
         materialPrompt: document.querySelector("#material-practice-prompt"),
         hud: document.querySelector("#coach-hud"),
         hudEyebrow: document.querySelector("#hud-eyebrow"),
+        hudSource: document.querySelector("#hud-source"),
         hudTitle: document.querySelector("#hud-title"),
         hudMessage: document.querySelector("#hud-message"),
         hudExample: document.querySelector("#hud-example"),
@@ -202,24 +203,71 @@
         const action = background ? "已確認並更新提示" : "已產生提示";
         if (source === "gemini") return `Gemini ${action}`;
         if (source === "ollama") return `Ollama ${action}`;
-        return "情境化備援提示";
+        return "規則備援提示（非模型生成）";
     }
 
     function pendingCoachStatus() {
         const health = state.coachProviderHealth || {};
         if (health.provider === "gemini") {
             if (["ready", "configured"].includes(health.status)) {
-                return "即時提示已顯示；Gemini 正在背景確認策略";
+                return "Gemini 正在生成；完成前不顯示提示";
             }
             if (health.fallback?.status === "ready") {
-                return "即時提示已顯示；Ollama 正在背景確認策略";
+                return "Ollama 正在生成；完成前不顯示提示";
             }
-            return "即時提示已顯示；目前使用本機備援";
+            return "模型目前無法使用；正在準備規則備援";
         }
         if (health.provider === "ollama" || health.status === "ready") {
-            return "即時提示已顯示；Ollama 正在背景確認策略";
+            return "Ollama 正在生成；完成前不顯示提示";
         }
-        return "即時提示已顯示；正在背景確認策略";
+        return "模型正在生成；完成前不顯示提示";
+    }
+
+    function coachSourceMeta(suggestion = {}, source = suggestion.source) {
+        const generatedFields = new Set(
+            String(suggestion.model_generated_fields || "")
+                .split(",")
+                .filter(Boolean),
+        );
+        const allCopyFromModel = ["message", "example", "practice_prompt"]
+            .every((field) => generatedFields.has(field));
+        if (source === "gemini") {
+            return {
+                source,
+                label: allCopyFromModel
+                    ? "文案 Gemini 生成 · 策略規則"
+                    : "Gemini 部分生成 · 含規則備援",
+            };
+        }
+        if (source === "ollama") {
+            return {
+                source,
+                label: allCopyFromModel
+                    ? "文案 Ollama 生成 · 策略規則"
+                    : "Ollama 部分生成 · 含規則備援",
+            };
+        }
+        return { source: "rule_engine", label: "規則備援 · 非模型" };
+    }
+
+    function showPendingCoach() {
+        elements.hud.dataset.tone = "ready";
+        elements.hud.dataset.mode = "waiting";
+        elements.hud.classList.add("is-waiting");
+        elements.hudEyebrow.textContent = "模型生成中";
+        elements.hudTitle.textContent = "正在讀懂這一輪對話";
+        elements.hudMessage.textContent = "完成前不顯示提示，避免把備援內容誤認為模型回覆。";
+        elements.hudExample.textContent = "";
+        if (elements.hudSource) {
+            elements.hudSource.dataset.source = "pending";
+            elements.hudSource.textContent = "等待模型回覆";
+        }
+        elements.materialPrompt.textContent = "";
+        if (elements.materialPromptLabel) {
+            elements.materialPromptLabel.textContent = "模型正在生成提示…";
+        }
+        elements.materialCaption?.classList.remove("is-relationship", "is-safety");
+        elements.materialCaption?.classList.add("is-waiting");
     }
 
     function updateCoachProviderHealth(coachProvider, legacyOllama) {
@@ -254,7 +302,17 @@
                 return;
             }
             if (health.status === "degraded") {
-                elements.ruleStatus.textContent = "Gemini 連線異常，使用本機備援";
+                if (health.last_error === "dns_unavailable") {
+                    elements.ruleStatus.textContent = "Gemini DNS 無法連線，使用本機備援";
+                } else if (health.last_error === "timeout") {
+                    elements.ruleStatus.textContent = "Gemini 回應逾時，使用本機備援";
+                } else if (health.last_error?.startsWith("http_")) {
+                    const statusCode = health.last_error.slice(5);
+                    elements.ruleStatus.textContent =
+                        `Gemini API 錯誤 ${statusCode}，使用本機備援`;
+                } else {
+                    elements.ruleStatus.textContent = "Gemini 網路連線異常，使用本機備援";
+                }
                 return;
             }
             if (health.status === "disabled") {
@@ -304,7 +362,7 @@
             elements.materialPromptLabel.textContent = "練習提示 · 可以直接這樣問";
         }
         elements.materialCaption?.classList.remove("is-relationship");
-        elements.hudExample.textContent = material.parent_example;
+        elements.hudExample.textContent = "";
         if (elements.materialSelect.value !== material.id) {
             elements.materialSelect.value = material.id;
         }
@@ -356,7 +414,7 @@
                 eyebrow: "親子共讀",
                 title: "先跟著孩子看到的地方",
                 message: "先描述一個畫面細節，再停下來等待孩子回應。",
-                example: state.selectedMaterial?.parent_example,
+                example: "",
                 practice_prompt: state.selectedMaterial?.practice_prompt,
             });
             startASDAnalysis();
@@ -1479,11 +1537,12 @@
         state.latestEventId = data.event.id;
         appendEvent(data.event);
         updateMetrics(data.metrics);
-        updateHud(data.suggestion);
         if (data.coach_pending) {
+            showPendingCoach();
             elements.ruleStatus.textContent = pendingCoachStatus();
             scheduleCoachRefinement(data.event.id);
         } else {
+            updateHud(data.suggestion, data.coach_source);
             elements.ruleStatus.textContent = completedCoachStatus(
                 data.coach_source,
             );
@@ -1516,7 +1575,7 @@
                         !state.completed
                         && job.eventId === state.latestEventId
                     ) {
-                        updateHud(data.suggestion);
+                        updateHud(data.suggestion, data.coach_source);
                         updateEventBadge(job.eventId, data.suggestion);
                         elements.ruleStatus.textContent = completedCoachStatus(
                             data.coach_source,
@@ -1528,7 +1587,7 @@
                         !state.completed
                         && job.eventId === state.latestEventId
                     ) {
-                        elements.ruleStatus.textContent = "情境化備援提示";
+                        elements.ruleStatus.textContent = "模型生成失敗；尚未顯示提示";
                     }
                 }
             }
@@ -1607,7 +1666,7 @@
         elements.turnRing.style.setProperty("--progress", metrics.turn_taking_rate);
     }
 
-    function updateHud(suggestion) {
+    function updateHud(suggestion, source = suggestion.source) {
         const responseMode = suggestion.response_mode || "";
         const isSafety = responseMode === "safety_check"
             || suggestion.eyebrow === "安全優先";
@@ -1619,10 +1678,23 @@
         elements.hud.dataset.mode = isSafety
             ? "safety"
             : (isRelationship ? "relationship" : "picture");
+        elements.hud.classList.remove("is-waiting");
+        elements.materialCaption?.classList.remove("is-waiting");
+        const sourceMeta = coachSourceMeta(suggestion, source);
+        if (elements.hudSource) {
+            elements.hudSource.dataset.source = sourceMeta.source;
+            elements.hudSource.textContent = sourceMeta.label;
+        }
         elements.hudEyebrow.textContent = suggestion.eyebrow;
         elements.hudTitle.textContent = suggestion.title;
         elements.hudMessage.textContent = suggestion.message;
-        elements.hudExample.textContent = suggestion.example;
+        // A second sentence beside the coaching card is distracting during
+        // ordinary picture-book turns and tends to repeat material details.
+        // Keep direct parent wording only when relationship or safety support
+        // makes it genuinely useful.
+        elements.hudExample.textContent = isOffMaterial
+            ? (suggestion.example || "")
+            : "";
         elements.materialPrompt.textContent = suggestion.practice_prompt || "";
         if (elements.materialPromptLabel) {
             elements.materialPromptLabel.textContent = isSafety

@@ -22,11 +22,14 @@
 <section class="coach-hud" id="coach-hud" data-tone="ready" aria-live="polite">
     <div class="hud-symbol" aria-hidden="true">✦</div>
     <div class="hud-copy">
-        <span id="hud-eyebrow">親子共讀</span>
+        <div class="hud-meta">
+            <span id="hud-eyebrow">親子共讀</span>
+            <span class="hud-source" id="hud-source" data-source="preset">預設引導 · 非模型</span>
+        </div>
         <strong id="hud-title">先跟著孩子看到的地方</strong>
         <p id="hud-message">先描述一個畫面細節，再停下來等待孩子回應。</p>
     </div>
-    <div class="hud-example" id="hud-example">{{ material.parent_example }}</div>
+    <div class="hud-example" id="hud-example"></div>
 </section>
 
 <section class="coach-workspace">

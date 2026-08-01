@@ -9,9 +9,13 @@ from __future__ import annotations
 
 import base64
 import json
+import socket
+import ssl
 import threading
 from pathlib import Path
 from urllib import error, request
+
+import certifi
 
 from ..materials import allowed_filenames, get_material
 from .ollama_coach_provider import OllamaCoachProvider
@@ -47,6 +51,7 @@ class GeminiCoachProvider(OllamaCoachProvider):
             else None
         )
         self.max_image_bytes = max(1, int(max_image_bytes))
+        self.ssl_context = self._verified_ssl_context()
         normalized_thinking = str(thinking_level or "low").strip().lower()
         self.thinking_level = (
             normalized_thinking
@@ -210,8 +215,18 @@ class GeminiCoachProvider(OllamaCoachProvider):
         with request.urlopen(
             http_request,
             timeout=self.timeout_seconds,
+            context=self.ssl_context,
         ) as response:
             return json.loads(response.read().decode("utf-8"))
+
+    @staticmethod
+    def _verified_ssl_context():
+        """Use system CAs when present, otherwise certifi's verified bundle."""
+
+        system_context = ssl.create_default_context()
+        if system_context.get_ca_certs():
+            return system_context
+        return ssl.create_default_context(cafile=certifi.where())
 
     def _trusted_material_image(self, context):
         if self.stimuli_dir is None:
@@ -291,4 +306,19 @@ class GeminiCoachProvider(OllamaCoachProvider):
             return f"http_{exc.code}"
         if isinstance(exc, TimeoutError):
             return "timeout"
+        if isinstance(exc, error.URLError):
+            reason = getattr(exc, "reason", None)
+            reason_text = str(reason or "").lower()
+            if isinstance(reason, socket.gaierror):
+                return "dns_unavailable"
+            if isinstance(reason, ssl.SSLCertVerificationError):
+                return "tls_verification_failed"
+            if (
+                isinstance(reason, (TimeoutError, socket.timeout))
+                or "timed out" in reason_text
+            ):
+                return "timeout"
+            if isinstance(reason, ConnectionRefusedError):
+                return "connection_refused"
+            return "network_unavailable"
         return exc.__class__.__name__.lower()

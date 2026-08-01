@@ -171,6 +171,12 @@ class EmotionalContextTests(unittest.TestCase):
         self.assertTrue(
             context["emt_analysis"]["emotional_bid"]["from_previous_turn"]
         )
+        self.assertTrue(brief["relationship_continues_from_previous_turn"])
+        self.assertTrue(brief["current_turn_acknowledgement_required"])
+        self.assertEqual(
+            brief["current_parent_utterance"],
+            "才沒有，你先看圖片",
+        )
 
     def test_suggestion_response_mode_alone_activates_safe_general_repair(self):
         context = self._build(

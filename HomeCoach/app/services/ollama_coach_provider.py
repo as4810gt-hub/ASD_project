@@ -96,79 +96,59 @@ class OllamaCoachProvider:
     }
 
     SYSTEM_PROMPT = """
-你是一位坐在家長身旁、熟悉加強式情境教學法（EMT）的親子共讀教練。
-你的聲音像有經驗的真人夥伴：真的聽懂孩子剛才是在陳述、猜測或提問，再給家長
-一句馬上說得出口的示範。你不是客服，也不是把規則換句話說的摘要機器。
+你是一位坐在家長身旁、熟悉加強式情境教學法（EMT）的親子共讀教練。請先真正
+聽見孩子這一刻的語氣和心情，再像一位有溫度、有生活感的真人夥伴開口。文字可以
+有停頓、疼惜、驚喜或一點輕鬆感；不要像客服、評量報告或規則摘要。
 
-你的任務通常是保留 clinical_rule_suggestion 的 coaching target，根據目前顯示的
-material_profile、interaction_brief、孩子剛說的話與最近對話，將 message、example 與
-practice_prompt 寫成自然、溫暖、容易立刻執行的繁體中文親子共讀引導。
+請根據 current_event、recent_dialogue、interaction_brief 和 material_profile，寫出
+自然的繁體中文提示。message 是你對家長貼近當下的一小段提醒；example 與
+practice_prompt 則是家長此刻真的說得出口的話。可以先回應孩子的感受或興趣，再
+自然帶出下一步，不必把每句話壓成僵硬的單一步驟，也不要套固定句型。
+material_profile 裡的 parent_example 與候選句只用來理解教材，不要原封不動照抄；
+每一輪的 example 要真的接住 current_event。若此刻停下來比再說一句更自然，就用
+一個簡短動作示範，不必硬塞教材描述。
 
-你另有一個範圍非常小的策略修正權：若對話核心已不是認圖或語句練習，而是孩子
-在確認自己的價值或能力、因做不好而羞愧、擔心被拒絕或不被愛、表達害怕／難過／
-委屈等情緒困擾、指出親子衝突或被家長的話傷到，response_mode 可選
-repair_connection。若最近一輪已有這類訊號，家長卻把話題轉開，下一輪也應先修復
-關係。除此之外一律選 follow_rule。這是唯一可更換的 coaching target。
+請保留以下必要邊界，其餘措辭與情感表達由你自由發揮：
+1. response_mode 只能是 follow_rule 或 repair_connection。通常跟隨
+   clinical_rule_suggestion；若孩子正在懷疑自己的價值或能力、害怕被拒絕、表達
+   難過／害怕／委屈，或親子關係剛受傷，選 repair_connection。已標記的關係修復
+   不得降級。follow_rule 時複製 clinical_rule_suggestion 的 tone、eyebrow、title。
+2. 只根據輸入中的對話、圖片描述與分析，不猜測孩子的能力、病況或意圖；不做 ASD
+   或其他醫療診斷，不責備、恐嚇，也不保證療效。asd_v4_observation 只能用來調整
+   節奏、刺激量與等待時間。
+3. follow_rule 可使用 material_profile 中確實可見的內容，但不可虛構畫面。
+   repair_connection 要留在孩子的感受與關係裡，不把話題拉回圖片或教材；先讓孩子
+   感到「你有聽見我」，再溫柔地了解他怎麼了。
+4. interaction_brief.current_turn_acknowledgement_required 為 true，表示目前已經是
+   家長的新一句，但上一輪孩子的關係訊號仍未被接住。message 必須先描述家長目前
+   這句的回應方式（例如已回答一部分、很快換了話題），再提醒尚未接住的孩子感受；
+   不可只重述孩子上一句，否則會看起來像慢一輪。example 與 practice_prompt 才是
+   建議家長接下來說的話。
+5. 孩子問問題時，先給一個自然短答，不把問句當陳述照抄；孩子提出自己的看法時，
+   先保留他的觀點，不急著糾正成唯一答案。逐字稿若有明顯同音錯字，可依上下文
+   保守修正，不要僵硬引用。
+6. 避免「建議進行、目前狀態、執行目標、可嘗試」等公文語氣，也避免空泛稱讚。
+   多寫出可被感受到的回應，例如「你有看到他眼睛亮起來」、「先靠近一點，讓這句
+   話慢慢落下來」、「嗯，你真的很想知道」。參考 recent_coach_copy 避免連續重複。
+7. eyebrow 最多 10 字，title 最多 18 字，message 最多 120 字，example 最多 56 字，
+   practice_prompt 最多 48 字。長度是上限，不是要填滿；自然比完整更重要。
+8. 輸出必須完全符合指定 JSON schema，不要輸出解釋、Markdown 或額外欄位。
 
-必要規則：
-1. response_mode 只能是 follow_rule 或 repair_connection。若 interaction_brief 已是
-   repair_connection、relationship_priority 為 true，或已有 emotional_bid，必須選
-   repair_connection，不得降級。若選 follow_rule，tone、eyebrow、title 必須原樣複製
-   clinical_rule_suggestion；選 repair_connection 時仍需填這三欄，但系統會換成固定、
-   安全的關係回應標題。
-2. 只能使用輸入提供的對話、material_profile 與分析，不得猜測孩子的能力、病況或意圖。
-3. 不做 ASD 或任何醫療診斷，不使用責備、恐嚇或保證療效的文字。
-4. 一次只給一個核心行動，但可以先用一小句承接孩子，再說下一步。
-5. eyebrow 最多 10 字；title 最多 18 字；message 最多 90 字。
-6. example 必須像家長真的會對孩子說的話或自然動作，最多 42 字。
-7. practice_prompt 是顯示給家長看的直接提示詞，必須是家長可以直接對孩子說的
-   一句話，最多 36 字。一般共讀輪次可用描述、開放問題或二選一問題。
-8. follow_rule 時，example 與 practice_prompt 只能提到 material_profile 的描述或
-   visible_elements 確實存在的內容，不得只憑檔名猜測，也不得虛構情節。
-   repair_connection 時剛好相反：先完全留在孩子的感受與親子關係，不提圖片、教材、
-   畫面或任何 visible_elements，也不要叫家長把話題轉回繪本。
-9. asd_v4_observation 只是實驗性、非診斷的互動訊號；可以用來放慢節奏、降低
-   刺激或增加等待，但不得向家長宣告 TD、輕度或重度診斷，也不得推翻 EMT target。
-10. interaction_brief.response_mode 是這一輪的細分行動（與你輸出的二選一
-    response_mode 不同），通常照著它和唯一 micro_action 做；唯一例外是依上面規則
-    升級成 repair_connection。若有 candidate_parent_examples 或
-    candidate_practice_prompts，優先從未重複的候選內容自然改寫。
-11. 若 interaction_brief.response_mode 是 answer_child_question，孩子是真的在問問題：先示範一個
-    根據畫面的短答案，絕對不可把孩子整句問句當陳述重複，例如孩子問「他們在幹嘛」
-    時，不可說「對，他們在幹嘛」。
-12. 若 interaction_brief.response_mode 是 expand_child_idea，要保留孩子的觀點。孩子說「他們在打架」
-    時，可以接「你覺得他們在打架，因為雪杖碰在一起了」，不可硬改成另一個故事。
-13. 逐字稿可能有同音辨識錯字；遇到明顯不通順的詞，不要僵硬逐字引用，可依最近
-    對話與畫面用保守、自然的說法承接。
-14. 先讀 current_event 與 recent_dialogue：孩子說的是短詞或陳述時，message 要自然地
-    提到核心意思，不能只說「重複孩子的話」這種抽象指令；若孩子問問題則不必照抄。
-15. 避免公文或機器口吻，例如「建議進行、目前狀態、維持互動、執行目標、
-    可嘗試」，也不要使用「這很好接／很好接」這類制式稱讚。多用家長聽得自然的
-    說法，例如「先別急、就留在這句話、等一等看他怎麼回」。不要每次都用相同開頭。
-16. 查看 recent_coach_copy 與 interaction_brief.avoid_repeating，避免重複最近已出現的
-    message、example 或問題句型，也不要每輪都稱讚「很好」。
-17. follow_rule 的 example 要具體使用孩子的核心意思或畫面元素；practice_prompt
-    不必每次都是「你看到什麼」。repair_connection 的 example 與 practice_prompt
-    則要直接回應孩子在意的關係問題，例如先否定傷人的標籤、表達接納，再用一個
-    溫和問題了解感受；不要急著解釋、說教或測驗孩子。
-18. repair_connection 時禁止「這很好接、做得很好、太棒了」等旁觀式稱讚。
-19. 輸出必須完全符合指定 JSON schema，不要輸出解釋、Markdown 或額外欄位。
-
-語氣示例（只學自然度，不可複製不存在的畫面內容）：
-- 孩子說「車車」時：message 可像「他抓到『車車』了。沿著他的詞，再多放進
-  一個小線索就好。」
-- 家長太快接話時：message 可像「先別急著補第二句。看著孩子笑一笑，心裡慢慢
-  數到三，等他用聲音、眼神或動作接你。」
-- 孩子問「你是不是覺得我很笨」時，要選 repair_connection；可示範
-  「我不覺得你笨。你這樣問，是不是有點難過？」不可轉回圖片找線索。
+自然度示例（只學情緒和節奏，不可挪用不存在的內容）：
+- 孩子說「車車」：message 可像「他一看到車車，聲音都亮起來了。就沿著這份興奮，
+  陪他多放進一個小線索吧。」
+- 家長太快接話：message 可像「先別急著把空白填滿。看著他、笑一下，讓他知道你
+  還在等他的下一句。」
+- 孩子問「你是不是覺得我很笨」：選 repair_connection，可說「我不覺得你笨。
+  你這樣問，我有點心疼；剛才是不是哪裡讓你很難受？」
 """.strip()
 
     FIELD_LIMITS = {
         "eyebrow": 10,
         "title": 18,
-        "message": 90,
-        "example": 42,
-        "practice_prompt": 36,
+        "message": 120,
+        "example": 56,
+        "practice_prompt": 48,
     }
 
     def __init__(
@@ -206,10 +186,10 @@ repair_connection。若最近一輪已有這類訊號，家長卻把話題轉開
             "think": False,
             "format": self.OUTPUT_SCHEMA,
             "options": {
-                "temperature": 0.45,
-                "top_p": 0.9,
-                "repeat_penalty": 1.08,
-                "num_predict": 320,
+                "temperature": 0.68,
+                "top_p": 0.94,
+                "repeat_penalty": 1.04,
+                "num_predict": 420,
             },
             "keep_alive": "10m",
         }
@@ -352,7 +332,8 @@ repair_connection。若最近一輪已有這類訊號，家長卻把話題轉開
             example = f"「你覺得{child_anchor}。{detail}」"
         elif response_mode == "recast_parent_turn" and child_anchor:
             message = (
-                f"孩子剛才的重點是「{child_anchor}」。下一句先留住這個意思，"
+                f"你這一句已經往下帶了；孩子上一輪的重點是「{child_anchor}」。"
+                "下一句先留住這個意思，"
                 "再補一個看得到的小線索，不用立刻換新問題。"
             )
             detail = parent_example.strip("「」『』\" ")
@@ -387,6 +368,7 @@ repair_connection。若最近一輪已有這類訊號，家長卻把話題轉開
                 f"剛才這一來一往很自然。就沿著{first_element}再聊一輪，"
                 "你說短短一句，接著把空白留給孩子。"
             )
+            example = "（看著孩子微笑，停一下等他接話）"
         elif eyebrow == "輪流互動":
             message = (
                 "你已經給了不少線索，現在把這一輪留給孩子。安靜看著他，"
@@ -477,15 +459,30 @@ repair_connection。若最近一輪已有這類訊號，家長卻把話題轉開
             or self._context_requires_repair(context)
         )
         fallback_message = str(fallback.get("message") or "").strip()
-        message = (
-            fallback_message
-            if fallback_was_repair
+        if brief.get("current_turn_acknowledgement_required"):
+            response_state = str(
+                brief.get("relationship_response_state") or ""
+            )
+            if response_state == "addressed":
+                message = (
+                    "你這一句已經在回應孩子了。先別急著往下帶，讓這份回應再多停一會，"
+                    "接著問問他最在意的是什麼。"
+                )
+            else:
+                message = (
+                    "你這一句很快帶到別的話題了，但孩子上一輪的感受還沒被接住。"
+                    "先回頭回應他真正擔心的事，說完停一下，等他接話。"
+                )
+        elif (
+            fallback_was_repair
             and self._repair_copy_is_safe(fallback_message, context)
-            else (
+        ):
+            message = fallback_message
+        else:
+            message = (
                 "先停在孩子在意的這件事上。清楚回應他真正擔心的關係問題，"
                 "再溫和問問他的感受；說完留點空白，讓他知道你願意聽。"
             )
-        )
 
         return {
             **fallback,
@@ -859,11 +856,19 @@ repair_connection。若最近一輪已有這類訊號，家長卻把話題轉開
                     else "clinical_rule"
                 ),
             }
+            model_generated_fields = []
             for field in ("message", "example", "practice_prompt"):
                 limit = self.FIELD_LIMITS[field]
                 value = str(suggestion.get(field) or "").strip()
-                if not value:
+                if (
+                    field == "message"
+                    and brief.get("current_turn_acknowledgement_required")
+                ):
                     value = str(repair_fallback[field]).strip()
+                elif not value:
+                    value = str(repair_fallback[field]).strip()
+                else:
+                    model_generated_fields.append(field)
                 normalized[field] = value[:limit]
 
             if not all(
@@ -881,6 +886,9 @@ repair_connection。若最近一輪已有這類訊號，家長卻把話題轉開
 
             normalized["source"] = str(source or "ollama")
             normalized["model"] = str(model or self.model)
+            normalized["model_generated_fields"] = ",".join(
+                model_generated_fields
+            )
             return normalized
 
         # The deterministic rule engine owns the coaching target. Even if a
@@ -898,11 +906,14 @@ repair_connection。若最近一輪已有這類訊號，家長卻把話題轉開
             ),
             "coach_target_source": "clinical_rule",
         }
+        model_generated_fields = []
         for field in ("message", "example", "practice_prompt"):
             limit = self.FIELD_LIMITS[field]
             value = str(suggestion.get(field) or "").strip()
             if not value:
                 value = str(fallback[field]).strip()
+            else:
+                model_generated_fields.append(field)
             normalized[field] = value[:limit]
 
         combined_copy = " ".join(
@@ -923,6 +934,8 @@ repair_connection。若最近一輪已有這類訊號，家長卻把話題轉開
             compact_example = self._compact_copy(normalized["example"])
             if compact_question and compact_question in compact_example:
                 normalized["example"] = fallback["example"]
+                if "example" in model_generated_fields:
+                    model_generated_fields.remove("example")
             bad_echo_directives = (
                 "跟著他說",
                 "跟著孩子說",
@@ -940,6 +953,8 @@ repair_connection。若最近一輪已有這類訊號，家長卻把話題轉開
                 )
             ):
                 normalized["message"] = fallback["message"]
+                if "message" in model_generated_fields:
+                    model_generated_fields.remove("message")
 
         child_anchor = str(brief.get("child_anchor") or "")
         raw_child_text = str(
@@ -965,6 +980,8 @@ repair_connection。若最近一輪已有這類訊號，家長卻把話題轉開
                     bigram in compact_field for bigram in malformed_bigrams
                 ):
                     normalized[field] = fallback[field]
+                    if field in model_generated_fields:
+                        model_generated_fields.remove(field)
 
         recent_prompts = {
             self._compact_copy(copy.get("practice_prompt"))
@@ -976,9 +993,44 @@ repair_connection。若最近一輪已有這類訊號，家長卻把話題轉開
             in recent_prompts
         ):
             normalized["practice_prompt"] = fallback["practice_prompt"]
+            if "practice_prompt" in model_generated_fields:
+                model_generated_fields.remove("practice_prompt")
+
+        # Catalog examples are scaffolding, not live coaching copy. Small
+        # models otherwise repeat the first material sentence every session.
+        material = context.get("material_profile") or {}
+        current_event = context.get("current_event") or {}
+        catalog_example = self._compact_copy(material.get("parent_example"))
+        if (
+            current_event.get("speaker") == "parent"
+            and catalog_example
+            and self._compact_copy(normalized["example"]) == catalog_example
+        ):
+            normalized["example"] = str(
+                fallback.get("example")
+                or "（看著孩子，停一下等他接話）"
+            ).strip()[: self.FIELD_LIMITS["example"]]
+            if "example" in model_generated_fields:
+                model_generated_fields.remove("example")
+
+        recent_examples = {
+            self._compact_copy(copy.get("example"))
+            for copy in context.get("recent_coach_copy") or []
+            if isinstance(copy, dict) and copy.get("example")
+        }
+        if self._compact_copy(normalized["example"]) in recent_examples:
+            replacement = str(fallback.get("example") or "").strip()
+            if self._compact_copy(replacement) in recent_examples:
+                replacement = "（先停一下，看著孩子等他接話）"
+            normalized["example"] = replacement[: self.FIELD_LIMITS["example"]]
+            if "example" in model_generated_fields:
+                model_generated_fields.remove("example")
 
         normalized["source"] = str(source or "ollama")
         normalized["model"] = str(model or self.model)
+        normalized["model_generated_fields"] = ",".join(
+            model_generated_fields
+        )
         return normalized
 
     @staticmethod
@@ -991,7 +1043,10 @@ repair_connection。若最近一輪已有這類訊號，家長卻把話題轉開
         )
 
     def _fallback(self, fallback):
-        return {
+        normalized = {
             **fallback,
             "source": "rule_engine",
+            "model_generated_fields": "",
         }
+        normalized.pop("model", None)
+        return normalized
