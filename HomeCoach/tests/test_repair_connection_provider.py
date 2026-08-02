@@ -241,6 +241,48 @@ class RepairConnectionProviderTests(unittest.TestCase):
         self.assertNotIn("message", result["model_generated_fields"])
         self.assertIn("example", result["model_generated_fields"])
 
+    def test_carried_repair_keeps_model_message_that_acknowledges_parent_turn(self):
+        context = self._context()
+        context["current_event"] = {
+            "speaker": "parent",
+            "text": "我們一起看看還有什麼東西。",
+            "pause_before": 2.0,
+        }
+        context["interaction_brief"].update(
+            {
+                "current_turn_acknowledgement_required": True,
+                "relationship_continues_from_previous_turn": True,
+                "relationship_response_state": "needs_repair",
+            }
+        )
+        model_message = (
+            "你這一句很快換了話題，但孩子的難受還留在原地。"
+            "先回頭讓他知道你真的有聽見。"
+        )
+        provider = OllamaCoachProvider(
+            base_url="http://localhost:11434/api",
+            model="test-model",
+            enabled=True,
+        )
+        provider._request_json = Mock(
+            return_value=self._ollama_response(
+                {
+                    "response_mode": "repair_connection",
+                    "tone": "ready",
+                    "eyebrow": "情緒接住",
+                    "title": "先接住孩子",
+                    "message": model_message,
+                    "example": "「我聽見你很不好受，我在這裡陪你。」",
+                    "practice_prompt": "我想聽你說，剛才是不是很難受？",
+                }
+            )
+        )
+
+        result = provider.generate(context, self.IMAGE_FALLBACK)
+
+        self.assertEqual(result["message"], model_message)
+        self.assertIn("message", result["model_generated_fields"])
+
     def test_model_can_safely_escalate_a_missed_relational_hurt(self):
         context = self._context(
             repair=False,

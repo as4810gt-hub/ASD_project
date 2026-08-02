@@ -50,6 +50,13 @@ def create_app(test_config=None):
             os.getenv("OLLAMA_TIMEOUT_SECONDS", "30")
         ),
         OLLAMA_ENABLED=_env_enabled("OLLAMA_ENABLED", default=True),
+        OLLAMA_VISION_ENABLED=_env_enabled(
+            "OLLAMA_VISION_ENABLED",
+            default=True,
+        ),
+        OLLAMA_MAX_IMAGE_BYTES=int(
+            os.getenv("OLLAMA_MAX_IMAGE_BYTES", str(3 * 1024 * 1024))
+        ),
         COACH_PROVIDER=os.getenv("COACH_PROVIDER", "gemini").strip().lower(),
         GEMINI_API_KEY=os.getenv("GEMINI_API_KEY", ""),
         GEMINI_BASE_URL=os.getenv(
@@ -126,6 +133,12 @@ def create_app(test_config=None):
         model=app.config["OLLAMA_MODEL"],
         timeout_seconds=app.config["OLLAMA_TIMEOUT_SECONDS"],
         enabled=app.config["OLLAMA_ENABLED"] and not app.config.get("TESTING"),
+        stimuli_dir=(
+            app.config["STIMULI_DIR"]
+            if app.config["OLLAMA_VISION_ENABLED"]
+            else None
+        ),
+        max_image_bytes=app.config["OLLAMA_MAX_IMAGE_BYTES"],
     )
     gemini_provider = GeminiCoachProvider(
         api_key=app.config["GEMINI_API_KEY"],

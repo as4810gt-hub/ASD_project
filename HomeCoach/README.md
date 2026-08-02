@@ -261,6 +261,8 @@ python run.py
 | `OLLAMA_BASE_URL` | `http://localhost:11434/api` | Ollama API base；程式會再加上 `/chat` 或 `/tags` |
 | `OLLAMA_MODEL` | `gemma4:e4b` | Ollama 本機備援模型名稱 |
 | `OLLAMA_TIMEOUT_SECONDS` | `30` | Ollama 請求逾時秒數 |
+| `OLLAMA_VISION_ENABLED` | `1` | 是否把 catalog 對應的教材 PNG 傳給支援 vision 的本機模型 |
+| `OLLAMA_MAX_IMAGE_BYTES` | `3145728` | 傳給 Ollama 的教材 PNG 大小上限（3 MiB） |
 
 本機備援仍需先啟動 Ollama 並備妥模型。例如：
 

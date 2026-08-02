@@ -7,24 +7,20 @@ are never accepted by this provider.
 
 from __future__ import annotations
 
-import base64
 import json
 import socket
 import ssl
 import threading
-from pathlib import Path
 from urllib import error, request
 
 import certifi
 
-from ..materials import allowed_filenames, get_material
 from .ollama_coach_provider import OllamaCoachProvider
 
 
 class GeminiCoachProvider(OllamaCoachProvider):
     """Generate structured coaching copy with Gemini and safe fallbacks."""
 
-    PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
     API_REVISION = "2026-05-20"
     VALID_THINKING_LEVELS = {"minimal", "low", "medium", "high"}
 
@@ -45,12 +41,6 @@ class GeminiCoachProvider(OllamaCoachProvider):
         self.requested = bool(enabled)
         self.gemini_enabled = self.requested and bool(self.api_key)
         self.fallback_provider = fallback_provider
-        self.stimuli_dir = (
-            Path(stimuli_dir).expanduser().resolve(strict=False)
-            if stimuli_dir
-            else None
-        )
-        self.max_image_bytes = max(1, int(max_image_bytes))
         self.ssl_context = self._verified_ssl_context()
         normalized_thinking = str(thinking_level or "low").strip().lower()
         self.thinking_level = (
@@ -71,6 +61,8 @@ class GeminiCoachProvider(OllamaCoachProvider):
             model=model,
             timeout_seconds=timeout_seconds,
             enabled=self.gemini_enabled or fallback_enabled,
+            stimuli_dir=stimuli_dir,
+            max_image_bytes=max_image_bytes,
         )
 
     def generate(self, context, fallback):
@@ -227,40 +219,6 @@ class GeminiCoachProvider(OllamaCoachProvider):
         if system_context.get_ca_certs():
             return system_context
         return ssl.create_default_context(cafile=certifi.where())
-
-    def _trusted_material_image(self, context):
-        if self.stimuli_dir is None:
-            return None
-        material_profile = context.get("material_profile") or {}
-        material_id = str(material_profile.get("id") or "").strip()
-        if not material_id:
-            return None
-        material = get_material(material_id)
-        if material is None:
-            return None
-
-        filename = str(material.get("filename") or "")
-        if filename not in allowed_filenames() or not filename.endswith(".png"):
-            return None
-
-        try:
-            root = self.stimuli_dir.resolve(strict=True)
-            candidate = (root / filename).resolve(strict=True)
-            if not candidate.is_relative_to(root) or not candidate.is_file():
-                return None
-            if candidate.stat().st_size > self.max_image_bytes:
-                return None
-            with candidate.open("rb") as image_file:
-                image_bytes = image_file.read(self.max_image_bytes + 1)
-        except (OSError, RuntimeError):
-            return None
-
-        if (
-            len(image_bytes) > self.max_image_bytes
-            or not image_bytes.startswith(self.PNG_SIGNATURE)
-        ):
-            return None
-        return base64.b64encode(image_bytes).decode("ascii")
 
     @staticmethod
     def _extract_output_text(response):

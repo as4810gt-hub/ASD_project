@@ -1,8 +1,13 @@
+import base64
 import json
+from pathlib import Path
 from urllib import error, request
+
+from ..materials import allowed_filenames, get_material
 
 
 class OllamaCoachProvider:
+    PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
     SAFETY_RESPONSE_MODE = "safety_check"
     UNSAFE_OUTPUT_TERMS = (
         "asd",
@@ -157,11 +162,19 @@ material_profile 裡的 parent_example 與候選句只用來理解教材，不�
         model,
         timeout_seconds=30,
         enabled=True,
+        stimuli_dir=None,
+        max_image_bytes=3 * 1024 * 1024,
     ):
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout_seconds = float(timeout_seconds)
         self.enabled = bool(enabled)
+        self.stimuli_dir = (
+            Path(stimuli_dir).expanduser().resolve(strict=False)
+            if stimuli_dir
+            else None
+        )
+        self.max_image_bytes = max(1, int(max_image_bytes))
 
     def generate(self, context, fallback):
         if self._context_requires_safety(context):
@@ -170,17 +183,29 @@ material_profile 裡的 parent_example 與候選句只用來理解教材，不�
         if not self.enabled:
             return self._fallback(enriched_fallback)
 
+        material_image = self._trusted_material_image(context)
+        request_instruction = (
+            "請閱讀隨附的目前教材圖片與以下 JSON 情境，改寫教練提示：\n"
+            if material_image is not None
+            else "請依照以下 JSON 情境改寫教練提示：\n"
+        )
+        user_message = {
+            "role": "user",
+            "content": (
+                request_instruction + json.dumps(context, ensure_ascii=False)
+            ),
+        }
+        if material_image is not None:
+            # Ollama's chat API accepts base64 images on the message that
+            # refers to them. Catalog validation below prevents arbitrary
+            # context paths from selecting local files.
+            user_message["images"] = [material_image]
+
         payload = {
             "model": self.model,
             "messages": [
                 {"role": "system", "content": self.SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": (
-                        "請依照以下 JSON 情境改寫教練提示：\n"
-                        + json.dumps(context, ensure_ascii=False)
-                    ),
-                },
+                user_message,
             ],
             "stream": False,
             "think": False,
@@ -221,6 +246,7 @@ material_profile 裡的 parent_example 與候選句只用來理解教材，不�
             return {
                 "status": "disabled",
                 "model": self.model,
+                "vision": self.stimuli_dir is not None,
             }
 
         try:
@@ -236,12 +262,48 @@ material_profile 裡的 parent_example 與候選句只用來理解教材，不�
             return {
                 "status": "ready" if self.model in available_models else "model_missing",
                 "model": self.model,
+                "vision": self.stimuli_dir is not None,
             }
         except (error.URLError, TimeoutError, TypeError, ValueError):
             return {
                 "status": "unavailable",
                 "model": self.model,
+                "vision": self.stimuli_dir is not None,
             }
+
+    def _trusted_material_image(self, context):
+        if self.stimuli_dir is None:
+            return None
+        material_profile = context.get("material_profile") or {}
+        material_id = str(material_profile.get("id") or "").strip()
+        if not material_id:
+            return None
+        material = get_material(material_id)
+        if material is None:
+            return None
+
+        filename = str(material.get("filename") or "")
+        if filename not in allowed_filenames() or not filename.endswith(".png"):
+            return None
+
+        try:
+            root = self.stimuli_dir.resolve(strict=True)
+            candidate = (root / filename).resolve(strict=True)
+            if not candidate.is_relative_to(root) or not candidate.is_file():
+                return None
+            if candidate.stat().st_size > self.max_image_bytes:
+                return None
+            with candidate.open("rb") as image_file:
+                image_bytes = image_file.read(self.max_image_bytes + 1)
+        except (OSError, RuntimeError):
+            return None
+
+        if (
+            len(image_bytes) > self.max_image_bytes
+            or not image_bytes.startswith(self.PNG_SIGNATURE)
+        ):
+            return None
+        return base64.b64encode(image_bytes).decode("ascii")
 
     def _request_json(self, endpoint, payload, timeout_seconds=None):
         body = None
@@ -863,6 +925,10 @@ material_profile 裡的 parent_example 與候選句只用來理解教材，不�
                 if (
                     field == "message"
                     and brief.get("current_turn_acknowledgement_required")
+                    and not self._message_acknowledges_current_turn(
+                        value,
+                        context,
+                    )
                 ):
                     value = str(repair_fallback[field]).strip()
                 elif not value:
@@ -1032,6 +1098,48 @@ material_profile 裡的 parent_example 與候選句只用來理解教材，不�
             model_generated_fields
         )
         return normalized
+
+    @staticmethod
+    def _message_acknowledges_current_turn(value, context):
+        """Accept carried-repair copy only when it notices the parent turn.
+
+        The prompt explicitly asks the model to bridge from the current
+        parent's response to the unresolved child cue. These compact markers
+        recognize that bridge without requiring a verbatim transcript quote.
+        A message that only starts from the child's previous sentence still
+        falls back to deterministic current-turn wording.
+        """
+
+        compact = "".join(str(value or "").split())
+        if not compact:
+            return False
+        current_event = context.get("current_event") or {}
+        if str(current_event.get("speaker") or "") != "parent":
+            return True
+        markers = (
+            "你這一句",
+            "你這句",
+            "這一句已經",
+            "這句話已經",
+            "你剛才",
+            "你剛剛",
+            "剛才你",
+            "剛剛你",
+            "剛才那句",
+            "剛剛那句",
+            "你剛把",
+            "你剛才把",
+            "你剛剛把",
+            "你已經回答",
+            "你已經回應",
+            "這一輪你",
+            "你很快換",
+            "你很快帶",
+            "你把話題",
+            "你轉到",
+            "你回到",
+        )
+        return any(marker in compact for marker in markers)
 
     @staticmethod
     def _compact_copy(value):
